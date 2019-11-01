@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  auto-ip-groups-updater
+
+  Sample SAM Template for auto-ip-groups-updater
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 30
+
+Parameters:
+  TargetRegion:
+    Type: String
+    Default: ap-northeast-1
+
+Resources:
+  UpdateIpAddressGroupFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: handler/
+      Handler: app.lambda_handler
+      Runtime: python3.7
+      Role: !GetAtt SecurityGroupUpdateRole.Arn
+      Events:
+        SNS:
+          Type: SNS
+          Properties:
+            Topic: arn:aws:sns:us-east-1:806199016981:AmazonIpSpaceChanged
+      Environment:
+        Variables:
+          SERVICE: EC2
+          REGION: ap-northeast-1
+
+  SecurityGroupUpdateRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: "security-group-update-policy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "ec2:AuthorizeSecurityGroupIngress"
+                  - "ec2:RevokeSecurityGroupIngress"
+                Resource: !Sub arn:aws:ec2:${TargetRegion}:${AWS::AccountId}:security-group/*
+              - Effect: "Allow"
+                Action: "ec2:DescribeSecurityGroups"
+                Resource: "*"
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: arn:aws:logs:*:*:*"
